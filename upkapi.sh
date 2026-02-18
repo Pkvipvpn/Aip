@@ -6,7 +6,8 @@ echo "        UPK VIP API INSTALLER"
 echo "======================================"
 
 apt update -y
-apt install python3 -y
+apt install python3 python3-pip -y
+pip3 install fastapi uvicorn
 
 mkdir -p /root/vpn_api
 cd /root/vpn_api
@@ -14,6 +15,7 @@ cd /root/vpn_api
 # remove old database
 rm -f users.db
 
+# ---------------- MENU PANEL ----------------
 cat << 'EOF' > menu.py
 import sqlite3
 import os
@@ -48,22 +50,11 @@ def init_db():
     conn.commit()
     conn.close()
 
-def table(rows):
-    print("+----+------------+----------------------+------------+--------+")
-    print("| No | Name       | HWID                 | Expire     | Status |")
-    print("+----+------------+----------------------+------------+--------+")
-    for r in rows:
-        print(f"| {str(r[0]).ljust(2)} | {str(r[1]).ljust(10)} | {str(r[2]).ljust(20)} | {str(r[3]).ljust(10)} | {str(r[4]).ljust(6)} |")
-    print("+----+------------+----------------------+------------+--------+")
-
 def add_user():
     clear(); banner()
-    print("\nADD USER\n")
-
     name=input("Name: ")
     hwid=input("HWID: ")
-    days=int(input("Expire Days (30/60/90): "))
-
+    days=int(input("Expire Days: "))
     expire=(datetime.now()+timedelta(days=days)).strftime("%Y-%m-%d")
 
     conn=sqlite3.connect(DB)
@@ -72,12 +63,11 @@ def add_user():
         c.execute("INSERT INTO users(name,hwid,expire,status) VALUES(?,?,?,?)",
                   (name,hwid,expire,"active"))
         conn.commit()
-        print("\nUser added ✔")
-        print("Expire:",expire)
+        print("User added ✔ Expire:",expire)
     except:
-        print("\nHWID already exists")
+        print("HWID already exists")
     conn.close()
-    input("\nPress Enter...")
+    input("Press Enter...")
 
 def list_users():
     clear(); banner()
@@ -87,11 +77,9 @@ def list_users():
     rows=c.fetchall()
     conn.close()
 
-    if rows:
-        table(rows)
-    else:
-        print("No users found.")
-    input("\nPress Enter...")
+    for r in rows:
+        print(r)
+    input("Press Enter...")
 
 def delete_user():
     clear(); banner()
@@ -101,25 +89,17 @@ def delete_user():
     rows=c.fetchall()
     conn.close()
 
-    if not rows:
-        print("No users.")
-        input("\nPress Enter...")
-        return
+    for r in rows:
+        print(r)
 
-    table(rows)
-
-    try:
-        num=int(input("\nEnter No to delete: "))
-        conn=sqlite3.connect(DB)
-        c=conn.cursor()
-        c.execute("DELETE FROM users WHERE id=?", (num,))
-        conn.commit()
-        conn.close()
-        print("User deleted ✔")
-    except:
-        print("Invalid selection")
-
-    input("\nPress Enter...")
+    uid=input("Enter ID to delete: ")
+    conn=sqlite3.connect(DB)
+    c=conn.cursor()
+    c.execute("DELETE FROM users WHERE id=?", (uid,))
+    conn.commit()
+    conn.close()
+    print("Deleted")
+    input("Press Enter...")
 
 def menu():
     while True:
@@ -129,29 +109,32 @@ def menu():
         print("3) Delete User")
         print("4) Exit\n")
 
-        ch=input("Select Option: ")
-
-        if ch=="1":
-            add_user()
-        elif ch=="2":
-            list_users()
-        elif ch=="3":
-            delete_user()
-        elif ch=="4":
-            break
+        ch=input("Select: ")
+        if ch=="1": add_user()
+        elif ch=="2": list_users()
+        elif ch=="3": delete_user()
+        elif ch=="4": break
 
 init_db()
 menu()
 EOF
 
-# command
+# ---------------- API DOWNLOAD ----------------
+echo "Downloading API..."
+wget -O vpn-api.py https://raw.githubusercontent.com/Pkvipvpn/Aip/refs/heads/main/vpn-api.py
+
+# ---------------- START API ----------------
+echo "Starting API..."
+pkill -f "uvicorn vpn-api:app"
+nohup uvicorn vpn-api:app --host 0.0.0.0 --port 80 > api.log 2>&1 &
+
+# ---------------- COMMANDS ----------------
 cat << 'EOF' > /usr/local/bin/upk
 #!/bin/bash
 python3 /root/vpn_api/menu.py
 EOF
 chmod +x /usr/local/bin/upk
 
-# reset command
 cat << 'EOF' > /usr/local/bin/upk-reset
 #!/bin/bash
 rm -rf /root/vpn_api
@@ -164,6 +147,7 @@ echo "Installation Complete"
 echo "Commands:"
 echo "upk        -> open panel"
 echo "upk-reset  -> reset panel"
+echo "API running on: http://SERVER_IP/"
 echo "======================================"
 
 sleep 2
