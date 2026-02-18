@@ -7,7 +7,10 @@ echo "======================================"
 
 apt update -y
 apt install python3 python3-pip -y
-pip3 install fastapi uvicorn
+
+# install python packages correctly
+python3 -m pip install --upgrade pip
+python3 -m pip install fastapi uvicorn
 
 mkdir -p /root/vpn_api
 cd /root/vpn_api
@@ -30,8 +33,8 @@ def banner():
     print(r"""
 ██╗   ██╗██████╗ ██╗  ██╗
 ██║   ██║██╔══██╗██║ ██╔╝
-██║   ██║██████╔╝█████╔╝ 
-██║   ██║██╔═══╝ ██╔═██╗ 
+██║   ██║██████╔╝█████╔╝
+██║   ██║██╔═══╝ ██╔═██╗
 ╚██████╔╝██║     ██║  ██╗
  ╚═════╝ ╚═╝     ╚═╝  ╚═╝
 
@@ -54,7 +57,7 @@ def add_user():
     clear(); banner()
     name=input("Name: ")
     hwid=input("HWID: ")
-    days=int(input("Expire Days: "))
+    days=int(input("Expire Days (30/60 etc): "))
     expire=(datetime.now()+timedelta(days=days)).strftime("%Y-%m-%d")
 
     conn=sqlite3.connect(DB)
@@ -63,7 +66,7 @@ def add_user():
         c.execute("INSERT INTO users(name,hwid,expire,status) VALUES(?,?,?,?)",
                   (name,hwid,expire,"active"))
         conn.commit()
-        print("User added ✔ Expire:",expire)
+        print("✔ User added | Expire:",expire)
     except:
         print("HWID already exists")
     conn.close()
@@ -77,8 +80,14 @@ def list_users():
     rows=c.fetchall()
     conn.close()
 
+    print("+----+----------+--------------+------------+--------+")
+    print("| No | Name     | HWID         | Expire     | Status |")
+    print("+----+----------+--------------+------------+--------+")
+
     for r in rows:
-        print(r)
+        print(f"| {r[0]:<2} | {r[1]:<8} | {r[2]:<12} | {r[3]:<10} | {r[4]:<6} |")
+
+    print("+----+----------+--------------+------------+--------+")
     input("Press Enter...")
 
 def delete_user():
@@ -90,15 +99,16 @@ def delete_user():
     conn.close()
 
     for r in rows:
-        print(r)
+        print(f"{r[0]}) {r[1]} - {r[2]} - {r[3]}")
 
-    uid=input("Enter ID to delete: ")
+    uid=input("\nEnter user number to delete: ")
+
     conn=sqlite3.connect(DB)
     c=conn.cursor()
     c.execute("DELETE FROM users WHERE id=?", (uid,))
     conn.commit()
     conn.close()
-    print("Deleted")
+    print("Deleted ✔")
     input("Press Enter...")
 
 def menu():
@@ -121,12 +131,13 @@ EOF
 
 # ---------------- API DOWNLOAD ----------------
 echo "Downloading API..."
-wget -O vpn-api.py https://raw.githubusercontent.com/Pkvipvpn/Aip/refs/heads/main/vpn-api.py
+wget -O vpn-api.py https://raw.githubusercontent.com/Pkvipvpn/Aip/main/vpn-api.py
 
 # ---------------- START API ----------------
 echo "Starting API..."
-pkill -f "uvicorn vpn-api:app"
-nohup uvicorn vpn-api:app --host 0.0.0.0 --port 80 > api.log 2>&1 &
+pkill -f "uvicorn"
+
+nohup python3 -m uvicorn vpn-api:app --host 0.0.0.0 --port 80 > api.log 2>&1 &
 
 # ---------------- COMMANDS ----------------
 cat << 'EOF' > /usr/local/bin/upk
