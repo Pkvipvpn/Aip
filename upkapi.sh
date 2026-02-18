@@ -1,5 +1,10 @@
 #!/bin/bash
 
+clear
+echo "======================================"
+echo "        UPK VIP API INSTALLER"
+echo "======================================"
+
 echo "Updating system..."
 apt update -y
 
@@ -51,7 +56,6 @@ def init_db():
 
 def print_table(rows, headers):
     widths = [len(h)+2 for h in headers]
-
     for row in rows:
         for i, col in enumerate(row):
             widths[i] = max(widths[i], len(str(col))+2)
@@ -141,7 +145,6 @@ def main_menu():
     while True:
         clear()
         banner()
-
         print("1) Add User")
         print("2) Delete User")
         print("3) List Users")
@@ -168,10 +171,12 @@ EOF
 echo "Setting alias upk..."
 
 if ! grep -q "alias upk=" ~/.bashrc; then
-    echo "alias upk='python3 /root/vpn_api/menu.py'" >> ~/.bashrc
+echo "alias upk='python3 /root/vpn_api/menu.py'" >> ~/.bashrc
 fi
 
 source ~/.bashrc
 
-echo "Installation complete."
+echo "======================================"
+echo "Installation Complete"
 echo "Type: upk"
+echo "======================================"
