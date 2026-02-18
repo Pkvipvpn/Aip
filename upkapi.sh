@@ -11,10 +11,7 @@ apt install python3 -y
 mkdir -p /root/vpn_api
 cd /root/vpn_api
 
-# remove old database to fix expire issue
-rm -f users.db
-
-echo "Creating menu.py..."
+echo "Rebuilding menu.py..."
 
 cat << 'EOF' > menu.py
 import sqlite3
@@ -28,14 +25,7 @@ def clear():
 
 def banner():
     print(r"""
-██╗   ██╗██████╗ ██╗  ██╗
-██║   ██║██╔══██╗██║ ██╔╝
-██║   ██║██████╔╝█████╔╝ 
-██║   ██║██╔═══╝ ██╔═██╗ 
-╚██████╔╝██║     ██║  ██╗
- ╚═════╝ ╚═╝     ╚═╝  ╚═╝
-
-        UPK VIP API PANEL
+UPK VIP API PANEL
 """)
 
 def init_db():
@@ -53,7 +43,6 @@ def init_db():
 def add_user():
     clear()
     banner()
-    print("\nADD USER\n")
 
     name = input("Name: ")
     hwid = input("HWID: ")
@@ -68,27 +57,51 @@ def add_user():
         c.execute("INSERT INTO users (name, hwid, expire, status) VALUES (?, ?, ?, ?)",
                   (name, hwid, expire_date, "active"))
         conn.commit()
-        print(f"\nUser added. Expire date: {expire_date}")
+        print("Expire date:", expire_date)
     except:
-        print("\nHWID already exists.")
+        print("HWID already exists")
 
     conn.close()
-    input("\nPress Enter...")
+    input("Press Enter...")
 
 def list_users():
     clear()
     banner()
+
     conn = sqlite3.connect(DB)
     c = conn.cursor()
     c.execute("SELECT id, name, hwid, expire, status FROM users")
     rows = c.fetchall()
     conn.close()
 
-    print("\nUSER LIST\n")
-    for row in rows:
-        print(row)
+    for r in rows:
+        print(r)
 
     input("\nPress Enter...")
+
+def delete_user():
+    clear()
+    banner()
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute("SELECT id, name, hwid, expire FROM users")
+    rows = c.fetchall()
+    conn.close()
+
+    for r in rows:
+        print(r)
+
+    uid = input("\nEnter ID to delete: ")
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute("DELETE FROM users WHERE id=?", (uid,))
+    conn.commit()
+    conn.close()
+
+    print("User deleted")
+    input("Press Enter...")
 
 def main_menu():
     while True:
@@ -96,7 +109,8 @@ def main_menu():
         banner()
         print("1) Add User")
         print("2) List Users")
-        print("3) Exit\n")
+        print("3) Delete User")
+        print("4) Exit\n")
 
         choice = input("Select Option: ")
 
@@ -105,11 +119,15 @@ def main_menu():
         elif choice == "2":
             list_users()
         elif choice == "3":
+            delete_user()
+        elif choice == "4":
             break
 
 init_db()
 main_menu()
 EOF
+
+echo "Creating upk command..."
 
 cat << 'EOF' > /usr/local/bin/upk
 #!/bin/bash
@@ -118,9 +136,20 @@ EOF
 
 chmod +x /usr/local/bin/upk
 
+# Reset script
+cat << 'EOF' > /usr/local/bin/upk-reset
+#!/bin/bash
+rm -rf /root/vpn_api
+echo "All files removed. Run installer again."
+EOF
+
+chmod +x /usr/local/bin/upk-reset
+
 echo "======================================"
 echo "Installation Complete"
-echo "Starting menu..."
+echo "Commands:"
+echo "upk        -> open panel"
+echo "upk-reset  -> reset all files"
 echo "======================================"
 
 sleep 2
