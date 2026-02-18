@@ -3,15 +3,12 @@ import sqlite3
 from datetime import datetime
 
 app = FastAPI()
-
-DB = "users.db"
+DB="users.db"
 
 @app.get("/")
 def get_users():
-
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-
     c.execute("SELECT name, hwid, expire, status FROM users")
     rows = c.fetchall()
     conn.close()
@@ -21,11 +18,9 @@ def get_users():
     for row in rows:
         name, hwid, expire, status = row
 
-        # inactive user skip
         if status != "active":
             continue
 
-        # expire date → remaining days
         try:
             expire_date = datetime.strptime(expire, "%Y-%m-%d")
             days_left = (expire_date - datetime.now()).days
