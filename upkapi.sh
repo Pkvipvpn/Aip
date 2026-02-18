@@ -5,14 +5,11 @@ echo "======================================"
 echo "        UPK VIP API INSTALLER"
 echo "======================================"
 
-echo "Installing requirements..."
 apt update -y
 apt install python3 -y
 
 mkdir -p /root/vpn_api
 cd /root/vpn_api
-
-echo "Creating menu.py..."
 
 cat << 'EOF' > menu.py
 import sqlite3
@@ -48,6 +45,14 @@ def init_db():
     conn.commit()
     conn.close()
 
+def print_table(rows):
+    print("+----+----------+----------------------+------------+--------+")
+    print("|No  |Name      |HWID                  |Expire      |Status  |")
+    print("+----+----------+----------------------+------------+--------+")
+    for r in rows:
+        print(f"|{str(r[0]).ljust(4)}|{str(r[1]).ljust(10)}|{str(r[2]).ljust(22)}|{str(r[3]).ljust(12)}|{str(r[4]).ljust(8)}|")
+    print("+----+----------+----------------------+------------+--------+")
+
 def add_user():
     clear()
     banner()
@@ -71,22 +76,49 @@ def add_user():
         print("\nHWID already exists.")
 
     conn.close()
-    input("\nPress Enter to continue...")
+    input("\nPress Enter...")
 
 def list_users():
     clear()
     banner()
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-    c.execute("SELECT id, name, hwid, expire FROM users")
+    c.execute("SELECT id, name, hwid, expire, status FROM users")
     rows = c.fetchall()
     conn.close()
 
-    print("\nUSER LIST\n")
-    for row in rows:
-        print(f"{row[0]}) {row[1]} | {row[2]} | Expire: {row[3]}")
+    if rows:
+        print_table(rows)
+    else:
+        print("No users found.")
 
-    input("\nPress Enter to continue...")
+    input("\nPress Enter...")
+
+def delete_user():
+    clear()
+    banner()
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute("SELECT id, name, hwid, expire, status FROM users")
+    rows = c.fetchall()
+    conn.close()
+
+    if not rows:
+        print("No users.")
+        input("\nPress Enter...")
+        return
+
+    print_table(rows)
+    uid = input("\nEnter user No to delete: ")
+
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute("DELETE FROM users WHERE id=?", (uid,))
+    conn.commit()
+    conn.close()
+
+    print("User deleted.")
+    input("\nPress Enter...")
 
 def main_menu():
     while True:
@@ -94,7 +126,8 @@ def main_menu():
         banner()
         print("1) Add User")
         print("2) List Users")
-        print("3) Exit\n")
+        print("3) Delete User")
+        print("4) Exit\n")
 
         choice = input("Select Option: ")
 
@@ -103,13 +136,13 @@ def main_menu():
         elif choice == "2":
             list_users()
         elif choice == "3":
+            delete_user()
+        elif choice == "4":
             break
 
 init_db()
 main_menu()
 EOF
-
-echo "Creating upk command..."
 
 cat << 'EOF' > /usr/local/bin/upk
 #!/bin/bash
@@ -120,7 +153,7 @@ chmod +x /usr/local/bin/upk
 
 echo "======================================"
 echo "Installation Complete"
-echo "Menu starting..."
+echo "Starting menu..."
 echo "======================================"
 
 sleep 2
