@@ -3,20 +3,18 @@
 # ဖန်သားပြင်ကို ရှင်းလင်းခြင်း
 clear
 echo "======================================"
-echo "      UPK VIP API INSTALLER (FIXED)"
+echo "    UPK VIP API (ONLINE STATUS VER)"
 echo "======================================"
 
 # လိုအပ်တာတွေ Install လုပ်ခြင်း
 apt update -y
 apt install python3 python3-pip sqlite3 -y
 python3 -m pip install --upgrade pip
-python3 -m pip install fastapi uvicorn requests
+python3 -m pip install fastapi uvicorn
 
 # Folder ဆောက်ခြင်း
 mkdir -p /root/vpn_api
 cd /root/vpn_api
-
-# မှတ်ချက် - rm -f users.db ကို ဖျက်လိုက်ပါပြီ (User ဟောင်းတွေ မပျောက်စေရန်)
 
 # ---------------- MENU PANEL ----------------
 cat << 'EOF' > menu.py
@@ -37,100 +35,84 @@ def banner():
  ██║ ██║██╔═══╝ ██╔═██╗ 
  ╚██████╔╝██║     ██║  ██╗
   ╚═════╝ ╚═╝     ╚═╝  ╚═╝
-   UPK VIP API USER PANEL
+   UPK VIP API - STATUS MONITOR
     """)
 
 def init_db():
     conn = sqlite3.connect(DB)
     c = conn.cursor()
+    # last_seen column ကို အသစ်ထည့်ထားသည်
     c.execute("""CREATE TABLE IF NOT EXISTS users(
         id INTEGER PRIMARY KEY AUTOINCREMENT, 
         name TEXT, 
         hwid TEXT UNIQUE, 
         expire TEXT, 
-        status TEXT)""")
+        status TEXT,
+        last_seen TEXT)""")
     conn.commit()
     conn.close()
 
 def add_user():
-    clear()
-    banner()
+    clear(); banner()
     print("--- Add New User ---")
     name = input("Name: ").strip()
     hwid = input("HWID: ").strip()
-    
     if not name or not hwid:
-        print("\n❌ Name and HWID cannot be empty!")
-        input("Press Enter...")
-        return
-
+        print("\n❌ Error: Name/HWID လိုအပ်သည်။")
+        input("Press Enter..."); return
     try:
         days = int(input("Expire Days (default 30): ") or "30")
-    except ValueError:
-        days = 30
+    except: days = 30
         
     expire = (datetime.now() + timedelta(days=days)).strftime("%Y-%m-%d")
-    
     conn = sqlite3.connect(DB)
     c = conn.cursor()
     try:
         c.execute("INSERT INTO users(name, hwid, expire, status) VALUES(?,?,?,?)", 
                   (name, hwid, expire, "active"))
         conn.commit()
-        print(f"\n✅ User '{name}' added! Expire: {expire}")
+        print(f"\n✅ User '{name}' added!")
     except sqlite3.IntegrityError:
-        print(f"\n❌ Error: HWID '{hwid}' already exists in database!")
-    finally:
-        conn.close()
+        print(f"\n❌ Error: HWID '{hwid}' ရှိပြီးသားဖြစ်သည်။")
+    finally: conn.close()
     input("\nPress Enter...")
 
 def list_users():
-    clear()
-    banner()
+    clear(); banner()
     conn = sqlite3.connect(DB)
     c = conn.cursor()
-    c.execute("SELECT id, name, hwid, expire, status FROM users")
+    c.execute("SELECT id, name, hwid, last_seen FROM users")
     rows = c.fetchall()
     conn.close()
     
-    print(f"{'No':<3} | {'Name':<12} | {'HWID':<15} | {'Expire':<12} | {'Status'}")
-    print("-" * 60)
+    current_time = datetime.now()
+    print(f"{'No':<3} | {'Name':<12} | {'HWID':<15} | {'Status'}")
+    print("-" * 50)
     for r in rows:
-        print(f"{r[0]:<3} | {r[1]:<12} | {r[2]:<15} | {r[3]:<12} | {r[4]}")
+        status_icon = "🔴 Offline"
+        if r[3]: # last_seen ရှိလျှင်
+            try:
+                last_time = datetime.strptime(r[3], "%Y-%m-%d %H:%M:%S")
+                # ၅ မိနစ်အတွင်း signal ရှိလျှင် Online ဟုသတ်မှတ်
+                if (current_time - last_time).total_seconds() < 300:
+                    status_icon = "🟢 Online"
+            except: pass
+        print(f"{r[0]:<3} | {r[1]:<12} | {r[2]:<15} | {status_icon}")
     input("\nPress Enter...")
 
 def delete_user():
-    clear()
-    banner()
-    conn = sqlite3.connect(DB)
-    c = conn.cursor()
-    c.execute("SELECT id, name, hwid FROM users")
-    rows = c.fetchall()
-    if not rows:
-        print("No users found.")
-        conn.close()
-        input("Press Enter...")
-        return
-
-    for r in rows:
-        print(f"{r[0]}) {r[1]} ({r[2]})")
-    
-    uid = input("\nEnter User ID to delete: ")
+    clear(); banner()
+    uid = input("Enter User ID to delete: ")
+    conn = sqlite3.connect(DB); c = conn.cursor()
     c.execute("DELETE FROM users WHERE id=?", (uid,))
-    conn.commit()
-    conn.close()
-    print("Deleted ✔")
-    input("Press Enter...")
+    conn.commit(); conn.close()
+    print("Deleted ✔"); input("Press Enter...")
 
 def menu():
     init_db()
     while True:
-        clear()
-        banner()
-        print("1) Add User")
-        print("2) List Users")
-        print("3) Delete User")
-        print("4) Exit\n")
+        clear(); banner()
+        print("1) Add User\n2) List Users\n3) Delete User\n4) Exit\n")
         ch = input("Select: ")
         if ch == "1": add_user()
         elif ch == "2": list_users()
@@ -142,8 +124,6 @@ if __name__ == "__main__":
 EOF
 
 # ---------------- API SETUP ----------------
-echo "Setting up API..."
-# vpn-api.py ကို အသစ်ပြန်ရေးမယ် (ရက်တွက်ပုံ ပြင်ထားသည်)
 cat << 'EOF' > vpn-api.py
 from fastapi import FastAPI
 import sqlite3
@@ -152,68 +132,67 @@ from datetime import datetime
 app = FastAPI()
 DB = "/root/vpn_api/users.db"
 
+# --- User ဆီက Online Signal လက်ခံရန် (Heartbeat) ---
+@app.get("/ping/{hwid}")
+def ping_user(hwid: str):
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    c.execute("UPDATE users SET last_seen = ? WHERE hwid = ?", (now, hwid))
+    conn.commit()
+    conn.close()
+    return {"status": "alive", "time": now}
+
+# --- API JSON Output ---
 @app.get("/")
 def get_users():
-    try:
-        conn = sqlite3.connect(DB)
-        c = conn.cursor()
-        c.execute("SELECT name, hwid, expire, status FROM users")
-        rows = c.fetchall()
-        conn.close()
-    except:
-        return []
+    conn = sqlite3.connect(DB)
+    c = conn.cursor()
+    c.execute("SELECT name, hwid, expire, status, last_seen FROM users")
+    rows = c.fetchall()
+    conn.close()
 
     result = []
     current_time = datetime.now()
 
-    for name, hwid, expire, status in rows:
-        if status != "active":
-            continue
+    for name, hwid, expire, status, last_seen in rows:
+        if status != "active": continue
+        
+        is_online = "offline"
+        if last_seen:
+            try:
+                last_time = datetime.strptime(last_seen, "%Y-%m-%d %H:%M:%S")
+                if (current_time - last_time).total_seconds() < 300:
+                    is_online = "online"
+            except: pass
+
         try:
-            expire_date = datetime.strptime(expire, "%Y-%m-%d")
-            # ရက်ကျန်တွက်ချက်မှု (ဒီနေ့ပါအကျုံးဝင်စေရန်)
-            days_left = (expire_date - current_time).days + 1
+            exp_date = datetime.strptime(expire, "%Y-%m-%d")
+            days_left = (exp_date - current_time).days + 1
             if days_left < 0: days_left = 0
-        except:
-            days_left = 0
+        except: days_left = 0
 
         result.append({
             "Name": name,
             "Key": hwid,
-            "Valid": str(days_left)
+            "Valid": str(days_left),
+            "Status": is_online
         })
     return result
 EOF
 
 # ---------------- START API ----------------
-echo "Restarting API Service..."
 pkill -f "uvicorn"
 nohup python3 -m uvicorn vpn-api:app --host 0.0.0.0 --port 80 > api.log 2>&1 &
 
-# ---------------- SHORTCUT COMMANDS ----------------
+# ---------------- COMMANDS ----------------
 cat << 'EOF' > /usr/local/bin/upk
 #!/bin/bash
 python3 /root/vpn_api/menu.py
 EOF
 chmod +x /usr/local/bin/upk
 
-cat << 'EOF' > /usr/local/bin/upk-reset
-#!/bin/bash
-read -p "Are you sure you want to reset everything? (y/n): " confirm
-if [ "$confirm" == "y" ]; then
-    rm -rf /root/vpn_api
-    echo "Panel removed."
-fi
-EOF
-chmod +x /usr/local/bin/upk-reset
-
-echo "======================================"
-echo "✅ Installation Complete!"
-echo "Commands:"
-echo "  upk       -> Open User Panel"
-echo "  upk-reset -> Remove Database & Files"
-echo ""
-echo "API URL: http://$(hostname -I | awk '{print $1}')/"
-echo "======================================"
+echo "✅ အဆင့်မြှင့်တင်မှု အောင်မြင်သည်။"
+echo "Command: upk"
 sleep 2
 python3 /root/vpn_api/menu.py
